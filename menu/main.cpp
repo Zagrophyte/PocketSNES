@@ -196,7 +196,7 @@ bool8_32 S9xDeinitUpdate (int Width, int Height, bool8_32)
 			if (PAL) {
 				upscale_256x240_to_320x240((uint32_t*) sal_VideoGetBuffer(), (uint32_t*) IntermediateScreen, SNES_WIDTH);
 			} else {
-				upscale_p((uint32_t*) sal_VideoGetBuffer(), (uint32_t*) IntermediateScreen, SNES_WIDTH);
+				upscale_256x224_to_384x272_for_480x272((uint32_t*) sal_VideoGetBuffer(), (uint32_t*) IntermediateScreen, SNES_WIDTH);
 			}
 			break;
 
