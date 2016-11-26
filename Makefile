@@ -3,8 +3,8 @@
 
 TARGET = PocketSNES
 
-CC  := gcc
-CXX := g++
+CC  := gcc-6
+CXX := g++-6
 STRIP := strip
 
 SYSROOT := $(shell $(CC) --print-sysroot)
