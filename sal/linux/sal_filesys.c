@@ -9,7 +9,8 @@
 
 s32 sal_DirectoryGetCurrent(s8 *path, u32 size)
 {
-	getcwd(path,size);
+	if(getcwd(path,size) == NULL)
+		return SAL_ERROR;
 	return SAL_OK;
 }
 
