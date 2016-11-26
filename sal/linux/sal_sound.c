@@ -3,6 +3,8 @@
 
 #include <sal.h>
 
+extern void S9xMixSamples (unsigned char *buffer, int sample_count);
+
 #define BUFFER_FRAMES 3
 // 48000 Hz maximum; 1/50 of a second; 3 frames to hold (2 plus a bit extra)
 #define BUFFER_SAMPLES (48000 / 50 * (BUFFER_FRAMES + 1))
