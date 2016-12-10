@@ -3,8 +3,8 @@
 
 TARGET = PocketSNES
 
-CC  := gcc-6
-CXX := g++-6
+CC  := $(CROSS_COMPILE)gcc
+CXX := $(CROSS_COMPILE)g++
 STRIP := strip
 
 SYSROOT := $(shell $(CC) --print-sysroot)
@@ -26,8 +26,8 @@ INCLUDE = -I pocketsnes \
 
 CFLAGS = $(INCLUDE) -DRC_OPTIMIZED -D__LINUX__ -D__DINGUX__ \
 		 -DGCW_ZERO \
-		 -g -O3 -pipe -ffast-math $(SDL_CFLAGS) \
-		 -fomit-frame-pointer -march=armv7-a -mtune=cortex-a8 -mfpu=neon 
+		 -O3 -pipe -ffast-math $(SDL_CFLAGS) \
+		 -fomit-frame-pointer -march=armv7-a -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp -ftree-vectorize
 
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 
