@@ -358,7 +358,7 @@ void S9xSyncSpeed(void)
 	}
 	else
 	{
-		if (++IPPU.SkippedFrames >= Settings.SkipFrames + 1)
+		if (++IPPU.SkippedFrames > Settings.SkipFrames)
 		{
 			IPPU.RenderThisFrame = TRUE;
 			IPPU.SkippedFrames = 0;

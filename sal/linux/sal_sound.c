@@ -5,13 +5,13 @@
 
 extern void S9xMixSamples (unsigned char *buffer, int sample_count);
 
-#define BUFFER_FRAMES 3
-// 48000 Hz maximum; 1/50 of a second; 3 frames to hold (2 plus a bit extra)
+#define BUFFER_FRAMES 5
+// 48000 Hz maximum; 1/50 of a second; 5 frames to hold (4 plus a bit extra)
 #define BUFFER_SAMPLES (48000 / 50 * BUFFER_FRAMES)
 
 static SDL_AudioSpec audiospec;
 
-volatile static unsigned int ReadPos, WritePos;
+static unsigned int ReadPos, WritePos;
 
 // 2 channels per sample (stereo); 2 bytes per sample-channel (16-bit)
 static uint8_t Buffer[BUFFER_SAMPLES * 2 * 2];
@@ -23,19 +23,23 @@ static void sdl_audio_callback (void *userdata, Uint8 *stream, int len)
 	u32 SamplesRequested = len / BytesPerSample, SamplesBuffered,
 	    LocalWritePos = WritePos /* isolate a bit against races with the main thread */,
 	    LocalReadPos = ReadPos /* keep a non-volatile copy at hand */;
+
+	if (Muted)
+	{
+		memset(stream, 0, len);
+		ReadPos = (LocalReadPos + SamplesRequested) % BUFFER_SAMPLES;
+		return;
+	}
+
 	if (LocalReadPos <= LocalWritePos)
 		SamplesBuffered = LocalWritePos - LocalReadPos;
 	else
 		SamplesBuffered = BUFFER_SAMPLES - (LocalReadPos - LocalWritePos);
 
+	
 	if (SamplesRequested > SamplesBuffered)
 	{
 		return;
-	}
-
-	if (Muted)
-	{
-		memset(stream, 0, len);
 	}
 	else if (LocalReadPos + SamplesRequested > BUFFER_SAMPLES)
 	{
@@ -51,11 +55,13 @@ static void sdl_audio_callback (void *userdata, Uint8 *stream, int len)
 
 s32 sal_AudioInit(s32 rate, s32 bits, s32 stereo, s32 Hz)
 {
+	
+	SDL_memset(&audiospec, 0, sizeof(audiospec));
 	audiospec.freq = rate;
 	audiospec.channels = (stereo + 1);
 	audiospec.format = AUDIO_S16;
+	audiospec.samples = rate / Hz;
 
-	audiospec.samples = (rate / Hz);
 	if (!stereo && (audiospec.samples & 1))
 		audiospec.samples--;
 
