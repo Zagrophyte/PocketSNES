@@ -455,9 +455,9 @@ void DrawLargePixelHalfWidth (uint32 Tile, uint32 Offset,
 
 static inline void WRITE_4PIXELS16 (uint32 Offset, uint8 *Pixels, uint16 *ScreenColors)
 {
-#if defined(__MIPSEL) && defined(__GNUC__) && !defined(NO_ASM)
 	uint16 *Screen = (uint16 *) GFX.S + Offset;
 	uint8  *Depth = GFX.DB + Offset;
+#if defined(__MIPSEL) && defined(__GNUC__) && !defined(NO_ASM)
 	uint8  Pixel_A, Pixel_B, Pixel_C, Pixel_D;
 	uint8  Depth_A, Depth_B, Depth_C, Depth_D;
 	bool8  Cond;
@@ -524,17 +524,74 @@ static inline void WRITE_4PIXELS16 (uint32 Offset, uint8 *Pixels, uint16 *Screen
 		: /* input */   [Out16] "r" (Screen), [Z] "r" (Depth), [In8] "r" (Pixels), [Palette] "r" (ScreenColors), [ZCompare] "r" (GFX.Z1), [ZSet] "r" (GFX.Z2)
 		: /* clobber */ "memory"
 	);
+#elif defined(__thumb__) && defined(__GNUC__) && !defined(NO_ASM)
+	uint8  Pixel_A;
+	uint8  Depth_A;
+	uint16 Temp = 0;
+	__asm__ __volatile__ (
+        /* If In8A is non-zero (opaque) and ZCompare > ZA, write the pixel to
+         * the screen from the palette. */
+		"   ldrb  %[In8A], [%[In8], #0]                \n"
+        "   cbz   %[In8A], 2f                          \n"
+		"   ldrb  %[Temp], [%[Z], #0]                  \n"
+        "   cmp   %[ZCompare], %[Temp]                 \n"
+        /* Otherwise skip to the next pixel, B. */
+        "   blo.w 2f                                   \n"
+        /* Load the address of the palette entry (16-bit) corresponding to
+         * this pixel (partially in the delay slot). */
+        "   add   %[Temp], %[Palette], %[In8A], lsl #1 \n"
+		"   ldrh  %[Temp], [%[Temp], #0]               \n"
+        /* Load the palette entry. While that's being done, store the new
+         * depth for this pixel. Then store to the screen. */
+        "   strb  %[ZSet], [%[Z], #0]                  \n"
+        "   strh  %[Temp], [%[Out16], #0]              \n"
+		/*PIXEL B*/
+        "2:                                            \n"
+		"   ldrb  %[In8A], [%[In8], #1]                \n"
+        "   cbz   %[In8A], 3f                          \n"
+		"   ldrb  %[Temp], [%[Z], #1]                  \n"
+        "   cmp   %[ZCompare], %[Temp]                 \n"
+        "   blo.w 3f                                   \n"
+        "   add   %[Temp], %[Palette], %[In8A], lsl #1 \n"
+		"   ldrh  %[Temp], [%[Temp], #0]               \n"
+        "   strb  %[ZSet], [%[Z], #1]                  \n"
+        "   strh  %[Temp], [%[Out16], #2]              \n"
+		/*PIXEL C*/
+        "3:                                            \n"
+		"   ldrb  %[In8A], [%[In8], #2]                \n"
+        "   cbz   %[In8A], 4f                          \n"
+		"   ldrb  %[Temp], [%[Z], #2]                  \n"
+        "   cmp   %[ZCompare], %[Temp]                 \n"
+        "   blo.w 4f                                   \n"
+        "   add   %[Temp], %[Palette], %[In8A], lsl #1 \n"
+		"   ldrh  %[Temp], [%[Temp], #0]               \n"
+        "   strb  %[ZSet], [%[Z], #2]                  \n"
+        "   strh  %[Temp], [%[Out16], #4]              \n"
+		/*PIXEL D*/
+        "4:                                            \n"
+		"   ldrb  %[In8A], [%[In8], #3]                \n"
+        "   cbz   %[In8A], 5f                          \n"
+		"   ldrb  %[Temp], [%[Z], #3]                  \n"
+        "   cmp   %[ZCompare], %[Temp]                 \n"
+        "   blo.w 5f                                   \n"
+        "   add   %[Temp], %[Palette], %[In8A], lsl #1 \n"
+		"   ldrh  %[Temp], [%[Temp], #0]               \n"
+        "   strb  %[ZSet], [%[Z], #3]                  \n"
+        "   strh  %[Temp], [%[Out16], #6]              \n"		
+		"5:                                            \n"
+        :
+        :[Out16] "l" (Screen), [Z] "l" (Depth), [In8] "l" (Pixels), [Palette] "l" (ScreenColors), [ZCompare] "l" (GFX.Z1), [ZSet] "l" (GFX.Z2), [Temp] "l" (Temp), [In8A] "l" (Pixel_A)
+        :"memory"
+    );
 #else
-	uint8  Pixel;
-	uint16 *Screen = (uint16 *) GFX.S + Offset;
-	uint8  *Depth = GFX.DB + Offset;
+	register uint32 N;
 
-	for (uint8 N = 0; N < 4; N++)
+	for (N = 0; N < 4; N++)
 	{
-		if (GFX.Z1 > Depth [N] && (Pixel = Pixels[N]))
+		if (GFX.Z1 > Depth[N] && Pixels[N])
 		{
-			Screen [N] = ScreenColors [Pixel];
-			Depth [N] = GFX.Z2;
+			Screen[N] = ScreenColors[Pixels[N]];
+			Depth[N] = GFX.Z2;
 		}
 	}
 #endif
@@ -542,9 +599,9 @@ static inline void WRITE_4PIXELS16 (uint32 Offset, uint8 *Pixels, uint16 *Screen
 
 static inline void WRITE_4PIXELS16_FLIPPED (uint32 Offset, uint8 *Pixels, uint16 *ScreenColors)
 {
-#if defined(__MIPSEL) && defined(__GNUC__) && !defined(NO_ASM)
 	uint16 *Screen = (uint16 *) GFX.S + Offset;
 	uint8  *Depth = GFX.DB + Offset;
+#if defined(__MIPSEL) && defined(__GNUC__) && !defined(NO_ASM)
 	uint8  Pixel_A, Pixel_B, Pixel_C, Pixel_D;
 	uint8  Depth_A, Depth_B, Depth_C, Depth_D;
 	bool8  Cond;
@@ -611,17 +668,74 @@ static inline void WRITE_4PIXELS16_FLIPPED (uint32 Offset, uint8 *Pixels, uint16
 		: /* input */   [Out16] "r" (Screen), [Z] "r" (Depth), [In8] "r" (Pixels), [Palette] "r" (ScreenColors), [ZCompare] "r" (GFX.Z1), [ZSet] "r" (GFX.Z2)
 		: /* clobber */ "memory"
 	);
+#elif defined(__thumb__) && defined(__GNUC__) && !defined(NO_ASM)
+	uint8  Pixel_A;
+	uint8  Depth_A;
+	uint16 Temp = 0;
+	__asm__ __volatile__ (
+        /* If In8A is non-zero (opaque) and ZCompare > ZA, write the pixel to
+         * the screen from the palette. */
+		"   ldrb  %[In8A], [%[In8], #3]                \n"
+        "   cbz   %[In8A], 2f                          \n"
+		"   ldrb  %[Temp], [%[Z], #0]                  \n"
+        "   cmp   %[ZCompare], %[Temp]                 \n"
+        /* Otherwise skip to the next pixel, B. */
+        "   blo.w 2f                                   \n"
+        /* Load the address of the palette entry (16-bit) corresponding to
+         * this pixel (partially in the delay slot). */
+        "   add   %[Temp], %[Palette], %[In8A], lsl #1 \n"
+		"   ldrh  %[Temp], [%[Temp], #0]               \n"
+        /* Load the palette entry. While that's being done, store the new
+         * depth for this pixel. Then store to the screen. */
+        "   strb  %[ZSet], [%[Z], #0]                  \n"
+        "   strh  %[Temp], [%[Out16], #0]              \n"
+		/*PIXEL B*/
+        "2:                                            \n"
+		"   ldrb  %[In8A], [%[In8], #2]                \n"
+        "   cbz   %[In8A], 3f                          \n"
+		"   ldrb  %[Temp], [%[Z], #1]                  \n"
+        "   cmp   %[ZCompare], %[Temp]                 \n"
+        "   blo.w 3f                                   \n"
+        "   add   %[Temp], %[Palette], %[In8A], lsl #1 \n"
+		"   ldrh  %[Temp], [%[Temp], #0]               \n"
+        "   strb  %[ZSet], [%[Z], #1]                  \n"
+        "   strh  %[Temp], [%[Out16], #2]              \n"
+		/*PIXEL C*/
+        "3:                                            \n"
+		"   ldrb  %[In8A], [%[In8], #1]                \n"
+        "   cbz   %[In8A], 4f                          \n"
+		"   ldrb  %[Temp], [%[Z], #2]                  \n"
+        "   cmp   %[ZCompare], %[Temp]                 \n"
+        "   blo.w 4f                                   \n"
+        "   add   %[Temp], %[Palette], %[In8A], lsl #1 \n"
+		"   ldrh  %[Temp], [%[Temp], #0]               \n"
+        "   strb  %[ZSet], [%[Z], #2]                  \n"
+        "   strh  %[Temp], [%[Out16], #4]              \n"
+		/*PIXEL D*/
+        "4:                                            \n"
+		"   ldrb  %[In8A], [%[In8], #0]                \n"
+        "   cbz   %[In8A], 5f                          \n"
+		"   ldrb  %[Temp], [%[Z], #3]                  \n"
+        "   cmp   %[ZCompare], %[Temp]                 \n"
+        "   blo.w 5f                                   \n"
+        "   add   %[Temp], %[Palette], %[In8A], lsl #1 \n"
+		"   ldrh  %[Temp], [%[Temp], #0]               \n"
+        "   strb  %[ZSet], [%[Z], #3]                  \n"
+        "   strh  %[Temp], [%[Out16], #6]              \n"		
+		"5:                                            \n"
+        :
+        :[Out16] "l" (Screen), [Z] "l" (Depth), [In8] "l" (Pixels), [Palette] "l" (ScreenColors), [ZCompare] "l" (GFX.Z1), [ZSet] "l" (GFX.Z2), [Temp] "l" (Temp), [In8A] "l" (Pixel_A)
+        :"memory"
+    );
 #else
-	uint8  Pixel;
-	uint16 *Screen = (uint16 *) GFX.S + Offset;
-	uint8  *Depth = GFX.DB + Offset;
+	register uint32 N;
 
-	for (uint8 N = 0; N < 4; N++)
+	for (N = 0; N < 4; N++)
 	{
-		if (GFX.Z1 > Depth [N] && (Pixel = Pixels[3 - N]))
+		if (GFX.Z1 > Depth[N] && Pixels[3 - N])
 		{
-			Screen [N] = ScreenColors [Pixel];
-			Depth [N] = GFX.Z2;
+			Screen[N] = ScreenColors[Pixels[3 - N]];
+			Depth[N] = GFX.Z2;
 		}
 	}
 #endif
