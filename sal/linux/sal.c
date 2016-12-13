@@ -216,7 +216,8 @@ u32 sal_VideoInit(u32 bpp)
 	mBpp=bpp;
 
 	//Set up the screen
-	mScreen = SDL_SetVideoMode( SAL_SCREEN_WIDTH, SAL_SCREEN_HEIGHT, bpp, SDL_HWSURFACE |
+	mScreen = SDL_SetVideoMode( SAL_SCREEN_WIDTH, SAL_SCREEN_HEIGHT, mBpp, SDL_HWSURFACE | 
+		SDL_ASYNCBLIT | SDL_HWACCEL | SDL_FULLSCREEN | 
 #ifdef SDL_TRIPLEBUF
 		SDL_TRIPLEBUF
 #else
@@ -272,7 +273,8 @@ void sal_VideoEnterGame(u32 fullscreenOption, u32 pal, u32 refreshRate)
 	}
 	if (SDL_MUSTLOCK(mScreen))
 		SDL_UnlockSurface(mScreen);
-	mScreen = SDL_SetVideoMode(Width, Height, mBpp, SDL_HWSURFACE |
+		mScreen = SDL_SetVideoMode(Width, Height, mBpp, SDL_HWSURFACE | 
+		SDL_ASYNCBLIT | SDL_HWACCEL | SDL_FULLSCREEN | 
 #ifdef SDL_TRIPLEBUF
 		SDL_TRIPLEBUF
 #else
@@ -298,7 +300,9 @@ void sal_VideoExitGame()
 #ifdef GCW_ZERO
 	if (SDL_MUSTLOCK(mScreen))
 		SDL_UnlockSurface(mScreen);
-	mScreen = SDL_SetVideoMode(SAL_SCREEN_WIDTH, SAL_SCREEN_HEIGHT, mBpp, SDL_HWSURFACE | SDL_DOUBLEBUF);
+		mScreen = SDL_SetVideoMode(SAL_SCREEN_WIDTH, SAL_SCREEN_HEIGHT, mBpp, SDL_HWSURFACE | 
+				SDL_ASYNCBLIT | SDL_HWACCEL | SDL_FULLSCREEN | 
+				SDL_DOUBLEBUF);
 	if (SDL_MUSTLOCK(mScreen))
 		SDL_LockSurface(mScreen);
 #endif
